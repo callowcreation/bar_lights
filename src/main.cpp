@@ -19,6 +19,8 @@ int ledPin = 13;
 
 bool lastLockLow = lockLow;
 
+bool turnLightsOn = false;
+
 void pirSetup()
 {
 	pinMode(pirPin, INPUT);
@@ -49,7 +51,6 @@ void pirLoop()
 			Serial.print("motion detected at ");
 			Serial.print(millis() / 1000);
 			Serial.println(" sec");
-			delay(50);
 		}
 		takeLowTime = true;
 	}
@@ -71,14 +72,11 @@ void pirLoop()
 			Serial.print("motion ended at "); //output
 			Serial.print((millis() - pause) / 1000);
 			Serial.println(" sec");
-			delay(50);
 		}
 	}
 	if (lastLockLow != lockLow)
 	{
 		lastLockLow = lockLow;
-		Serial.print("lockLow ");
-		Serial.println(lockLow);
 	}
 }
 
@@ -108,17 +106,6 @@ void lightsSetup()
 	strip.begin();
 	strip.setBrightness(5);
 	strip.show(); // Initialize all pixels to 'off'
-}
-
-// Fill the dots one after the other with a color
-void colorWipe(uint32_t c, uint8_t wait)
-{
-	for (uint16_t i = 0; i < strip.numPixels(); i++)
-	{
-		strip.setPixelColor(i, c);
-		strip.show();
-		delay(wait);
-	}
 }
 
 void clearStrip()
@@ -153,7 +140,6 @@ void wipeColor(uint32_t c)
 
 	if (currentMillis - previousMillis >= interval) //test whether the period has elapsed
 	{
-
 		currentPixel++;
 		if (currentPixel > strip.numPixels())
 		{
@@ -198,11 +184,6 @@ void redGoldGreen(uint8_t wait)
 	wipeColor(strip.Color(255, 0, 0));
 }
 
-void lightsOff()
-{
-	colorWipe(strip.Color(0, 0, 0), 50); // Black-Off
-}
-
 void lightsLoop()
 {
 
@@ -213,7 +194,15 @@ void lightsLoop()
 	}
 	else
 	{
-		redGoldGreen(10);
+		if (!lockLow) // detected motion
+		{
+			redGoldGreen(10);
+		}
+		else
+		{
+			currentPixel = 0;
+			clearPixels = true;
+		}
 	}
 }
 
@@ -222,12 +211,13 @@ void lightsLoop()
 void setup()
 {
 	Serial.begin(9600);
-	//pirSetup();
+	pirSetup();
 	lightsSetup();
+	clearStrip();
 }
 
 void loop()
 {
-	//pirLoop();
+	pirLoop();
 	lightsLoop();
 }
