@@ -123,10 +123,17 @@ void clearStrip()
 unsigned long previousMillis = 0; // will store last time LED was updated
 
 // constants won't change:
-const long interval = 250; // interval at which to blink (milliseconds)
+const long interval = 50; // interval at which to blink (milliseconds)
 
 uint16_t currentPixel = 0;
 bool clearPixels;
+
+uint16_t colorIndex = 0;
+uint32_t colors[3] = {
+	strip.Color(255, 0, 0),
+	strip.Color(255, 100, 0),
+	strip.Color(0, 255, 0),
+};
 
 // color wipe with mills not delay
 void wipeColor(uint32_t c)
@@ -144,7 +151,11 @@ void wipeColor(uint32_t c)
 		if (currentPixel > strip.numPixels())
 		{
 			currentPixel = 0;
-			clearPixels = true;
+			//clearPixels = true;
+			
+			colorIndex = (colorIndex + 1) % (sizeof(colors) / sizeof(uint32_t));
+			Serial.print(" colorIndex=");
+			Serial.println(colorIndex);
 		}
 		else
 		{
@@ -175,13 +186,8 @@ uint32_t Wheel(byte WheelPos)
 
 void redGoldGreen(uint8_t wait)
 {
-	uint16_t i, j;
-	/*colorWipe(strip.Color(255, 0, 0), 50);
-	colorWipe(strip.Color(255, 100, 0), 50);
-	colorWipe(strip.Color(255, 100, 0), 50);
-	colorWipe(strip.Color(0, 255, 0), 50);
-	colorWipe(strip.Color(0, 0, 0), 50);*/
-	wipeColor(strip.Color(255, 0, 0));
+	uint32_t color = colors[colorIndex];
+	wipeColor(color);
 }
 
 void lightsLoop()
