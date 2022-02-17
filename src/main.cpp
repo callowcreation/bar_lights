@@ -1,21 +1,34 @@
+#include <math.h>
 #include <Arduino.h>
 
-// ---- PIR Sensor -----------------------------------------------
+#include <Ultrasonic.h>
+
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
 #include <avr/power.h>
 #endif
+
+#include "color.h"
+
+// --- Ultrasonic -----------------------------------------------
+Ultrasonic ultrasonic1(12, 13); // An ultrasonic sensor HC-04
+
+unsigned int maxDistanceCM = 88;
+
+// --- Ultrasonic -----------------------------------------------
+
+// ---- PIR Sensor -----------------------------------------------
 //the time we give the sensor to calibrate (10-60 secs according to the datasheet)
 int calibrationTime = 30;
 //the time when the sensor outputs a low impulse
 long unsigned int lowIn;
 //the amount of milliseconds the sensor has to be low
 //before we assume all motion has stopped
-long unsigned int pause = 5000;
+long unsigned int pause = 15000;
 boolean lockLow = true;
 boolean takeLowTime;
 int pirPin = 3; //the digital pin connected to the PIR sensor's output
-int ledPin = 13;
+int ledPin = 8;
 
 bool lastLockLow = lockLow;
 
@@ -104,7 +117,7 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_NUM, PIN, NEO_GRB + NEO_KHZ800);
 void lightsSetup()
 {
 	strip.begin();
-	strip.setBrightness(5);
+	strip.setBrightness(100);
 	strip.show(); // Initialize all pixels to 'off'
 }
 
@@ -123,17 +136,14 @@ void clearStrip()
 unsigned long previousMillis = 0; // will store last time LED was updated
 
 // constants won't change:
-const long interval = 50; // interval at which to blink (milliseconds)
+const long interval = 0; // interval at which to blink (milliseconds)
 
 uint16_t currentPixel = 0;
 bool clearPixels;
 
-uint16_t colorIndex = 0;
-uint32_t colors[3] = {
-	strip.Color(255, 0, 0),
-	strip.Color(255, 100, 0),
-	strip.Color(0, 255, 0),
-};
+unsigned int  distance = 0;
+
+uint32_t colors[] = {0, 0, 0};
 
 // color wipe with mills not delay
 void wipeColor(uint32_t c)
@@ -151,11 +161,6 @@ void wipeColor(uint32_t c)
 		if (currentPixel > strip.numPixels())
 		{
 			currentPixel = 0;
-			//clearPixels = true;
-			
-			colorIndex = (colorIndex + 1) % (sizeof(colors) / sizeof(uint32_t));
-			Serial.print(" colorIndex=");
-			Serial.println(colorIndex);
 		}
 		else
 		{
@@ -186,7 +191,17 @@ uint32_t Wheel(byte WheelPos)
 
 void redGoldGreen(uint8_t wait)
 {
-	uint32_t color = colors[colorIndex];
+	unsigned int clampedDist = distance;
+	if (clampedDist > maxDistanceCM)
+		clampedDist = maxDistanceCM;
+
+	unsigned int result = (unsigned int)((float)clampedDist / (float)maxDistanceCM * 255.0f);
+	unsigned int r = 255 - result;
+	unsigned int g = result;
+	unsigned int b = 0;
+	Color c = {r, g, b};
+
+	uint32_t color = strip.Color(c.r, c.g, c.b);
 	wipeColor(color);
 }
 
@@ -225,5 +240,8 @@ void setup()
 void loop()
 {
 	pirLoop();
+
+	distance = ultrasonic1.read();
+
 	lightsLoop();
 }
