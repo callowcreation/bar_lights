@@ -2,7 +2,7 @@
 
 struct Color
 {
-    unsigned int r;
-    unsigned int g;
-    unsigned int b;
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
 };

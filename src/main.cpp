@@ -121,14 +121,19 @@ void lightsSetup()
 	strip.show(); // Initialize all pixels to 'off'
 }
 
-void clearStrip()
+void setStripColorStrip(uint32_t color)
 {
-	uint32_t color = strip.Color(0, 0, 0);
 	for (uint16_t i = 0; i < strip.numPixels(); i++)
 	{
 		strip.setPixelColor(i, color);
 		strip.show();
 	}
+}
+
+void clearStrip()
+{
+	uint32_t color = strip.Color(0, 0, 0);
+	setStripColorStrip(color);
 }
 
 // Generally, you should use "unsigned long" for variables that hold time
@@ -141,9 +146,7 @@ const long interval = 0; // interval at which to blink (milliseconds)
 uint16_t currentPixel = 0;
 bool clearPixels;
 
-unsigned int  distance = 0;
-
-uint32_t colors[] = {0, 0, 0};
+unsigned int distance = 0;
 
 // color wipe with mills not delay
 void wipeColor(uint32_t c)
@@ -195,11 +198,9 @@ void redGoldGreen(uint8_t wait)
 	if (clampedDist > maxDistanceCM)
 		clampedDist = maxDistanceCM;
 
-	unsigned int result = (unsigned int)((float)clampedDist / (float)maxDistanceCM * 255.0f);
-	unsigned int r = 255 - result;
-	unsigned int g = result;
-	unsigned int b = 0;
-	Color c = {r, g, b};
+	unsigned char result = (unsigned char)((float)clampedDist / (float)maxDistanceCM * 255.0f);
+
+	Color c = {(unsigned char)255 - result, result, 0};
 
 	uint32_t color = strip.Color(c.r, c.g, c.b);
 	wipeColor(color);
@@ -207,7 +208,6 @@ void redGoldGreen(uint8_t wait)
 
 void lightsLoop()
 {
-
 	if (clearPixels)
 	{
 		clearStrip();
