@@ -100,6 +100,7 @@ void pirLoop()
 #define LED_NUM 12
 
 #define POTENTIOMETER_PIN A1
+#define STATE_CHANGE_PIN 7
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = Arduino pin number (most are valid)
@@ -116,6 +117,21 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_NUM, PIN, NEO_GRB + NEO_KHZ800);
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
 
+// Generally, you should use "unsigned long" for variables that hold time
+// The value will quickly become too large for an int to store
+unsigned long previousMillis = 0; // will store last time LED was updated
+
+// constants won't change:
+const long interval = 0; // interval at which to blink (milliseconds)
+
+uint16_t currentPixel = 0;
+bool clearPixels;
+
+unsigned int distance = 0;
+unsigned char lightsColorState = 0;
+boolean lightsColorStatePressed = false;
+const char MAX_LIGHTS_COLOR_STATE = 2;
+
 void setBrightness(uint8_t brightness)
 {
 	strip.setBrightness(brightness);
@@ -126,6 +142,7 @@ void lightsSetup()
 {
 	strip.begin();
 	setBrightness(100);
+	pinMode(STATE_CHANGE_PIN, INPUT_PULLUP);
 }
 
 void setStripColorStrip(uint32_t color)
@@ -142,18 +159,6 @@ void clearStrip()
 	uint32_t color = strip.Color(0, 0, 0);
 	setStripColorStrip(color);
 }
-
-// Generally, you should use "unsigned long" for variables that hold time
-// The value will quickly become too large for an int to store
-unsigned long previousMillis = 0; // will store last time LED was updated
-
-// constants won't change:
-const long interval = 0; // interval at which to blink (milliseconds)
-
-uint16_t currentPixel = 0;
-bool clearPixels;
-
-unsigned int distance = 0;
 
 // color wipe with mills not delay
 void wipeColor(uint32_t c)
@@ -199,7 +204,7 @@ uint32_t Wheel(byte WheelPos)
 	return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
 
-void redGoldGreen(unsigned int distance, double brightness)
+void redGoldGreenLights(unsigned int distance, double brightness)
 {
 	unsigned int clampedDist = distance;
 	if (clampedDist > maxDistanceCM)
@@ -208,6 +213,18 @@ void redGoldGreen(unsigned int distance, double brightness)
 	unsigned char result = (unsigned char)((float)clampedDist / (float)maxDistanceCM * 255.0f);
 
 	Color c = {(unsigned char)255 - result, result, 0};
+
+	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
+	wipeColor(color);
+}
+
+void whiteLights(unsigned int distance, double brightness)
+{
+	unsigned int clampedDist = distance;
+	if (clampedDist > maxDistanceCM)
+		clampedDist = maxDistanceCM;
+
+	Color c = {(unsigned char)255, (unsigned char)255, (unsigned char)255};
 
 	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
 	wipeColor(color);
@@ -224,7 +241,32 @@ void lightsLoop(unsigned int distance, double brightness)
 	{
 		if (!lockLow) // detected motion
 		{
-			redGoldGreen(distance, brightness);
+			if (digitalRead(STATE_CHANGE_PIN) == LOW && lightsColorStatePressed == false)
+			{
+				lightsColorStatePressed = true;
+				lightsColorState++;
+				if (lightsColorState == MAX_LIGHTS_COLOR_STATE)
+				{
+					lightsColorState = 0;
+				}
+			}
+			else if(digitalRead(STATE_CHANGE_PIN) == HIGH)
+			{
+				lightsColorStatePressed = false;
+			}
+			Serial.print("  lightsColorState: ");
+			Serial.println(lightsColorState);
+			switch (lightsColorState)
+			{
+			case 0:
+				redGoldGreenLights(distance, brightness);
+				break;
+			case 1:
+				whiteLights(distance, brightness);
+				break;
+			default:
+				break;
+			}
 		}
 		else
 		{
@@ -252,7 +294,7 @@ void loop()
 
 	int potentiometerValue = analogRead(POTENTIOMETER_PIN);
 	double brightness = potentiometerValue / 4; // 1 to 255
-	brightness /= 255;
+	brightness /= 255;							// 0.0 to 1.0
 
 	lightsLoop(distance, brightness);
 }
