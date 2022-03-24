@@ -18,16 +18,16 @@ unsigned int maxDistanceCM = 88;
 // --- Ultrasonic -----------------------------------------------
 
 // ---- PIR Sensor -----------------------------------------------
-//the time we give the sensor to calibrate (10-60 secs according to the datasheet)
+// the time we give the sensor to calibrate (10-60 secs according to the datasheet)
 int calibrationTime = 30;
-//the time when the sensor outputs a low impulse
+// the time when the sensor outputs a low impulse
 long unsigned int lowIn;
-//the amount of milliseconds the sensor has to be low
-//before we assume all motion has stopped
+// the amount of milliseconds the sensor has to be low
+// before we assume all motion has stopped
 long unsigned int pause = 15000;
 boolean lockLow = true;
 boolean takeLowTime;
-int pirPin = 3; //the digital pin connected to the PIR sensor's output
+int pirPin = 3; // the digital pin connected to the PIR sensor's output
 int ledPin = 8;
 
 bool lastLockLow = lockLow;
@@ -38,7 +38,7 @@ void pirSetup()
 {
 	pinMode(pirPin, INPUT);
 	pinMode(ledPin, OUTPUT);
-	digitalWrite(pirPin, LOW); //give the sensor some time to calibrate
+	digitalWrite(pirPin, LOW); // give the sensor some time to calibrate
 	Serial.print("calibrating sensor ");
 	for (int i = 0; i < calibrationTime; i++)
 	{
@@ -54,10 +54,10 @@ void pirLoop()
 {
 	if (digitalRead(pirPin) == HIGH)
 	{
-		digitalWrite(ledPin, HIGH); //the led visualizes the sensors output pin state
+		digitalWrite(ledPin, HIGH); // the led visualizes the sensors output pin state
 
 		if (lockLow)
-		{ //makes sure we wait for a transition to LOW before any further output is made:
+		{ // makes sure we wait for a transition to LOW before any further output is made:
 
 			lockLow = false;
 			Serial.println("---");
@@ -69,20 +69,20 @@ void pirLoop()
 	}
 	if (digitalRead(pirPin) == LOW)
 	{
-		digitalWrite(ledPin, LOW); //the led visualizes the sensors output pin state
+		digitalWrite(ledPin, LOW); // the led visualizes the sensors output pin state
 		if (takeLowTime)
 		{
-			lowIn = millis();	 //save the time of the transition from high to LOW
-			takeLowTime = false; //make sure this is only done at the start of a LOW phase
+			lowIn = millis();	 // save the time of the transition from high to LOW
+			takeLowTime = false; // make sure this is only done at the start of a LOW phase
 		}
-		//if the sensor is low for more than the given pause,
-		//we assume that no more motion is going to happen
+		// if the sensor is low for more than the given pause,
+		// we assume that no more motion is going to happen
 		if (!lockLow && millis() - lowIn > pause)
 		{
-			//makes sure this block of code is only executed again after
-			//a new motion sequence has been detected
+			// makes sure this block of code is only executed again after
+			// a new motion sequence has been detected
 			lockLow = true;
-			Serial.print("motion ended at "); //output
+			Serial.print("motion ended at "); // output
 			Serial.print((millis() - pause) / 1000);
 			Serial.println(" sec");
 		}
@@ -99,6 +99,8 @@ void pirLoop()
 #define PIN 6
 #define LED_NUM 12
 
+#define POTENTIOMETER_PIN A1
+
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = Arduino pin number (most are valid)
 // Parameter 3 = pixel type flags, add together as needed:
@@ -114,11 +116,16 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_NUM, PIN, NEO_GRB + NEO_KHZ800);
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
 
+void setBrightness(uint8_t brightness)
+{
+	strip.setBrightness(brightness);
+	strip.show(); // Initialize all pixels to 'off'
+}
+
 void lightsSetup()
 {
 	strip.begin();
-	strip.setBrightness(100);
-	strip.show(); // Initialize all pixels to 'off'
+	setBrightness(100);
 }
 
 void setStripColorStrip(uint32_t color)
@@ -158,7 +165,7 @@ void wipeColor(uint32_t c)
 	// the interval at which you want to blink the LED.
 	unsigned long currentMillis = millis();
 
-	if (currentMillis - previousMillis >= interval) //test whether the period has elapsed
+	if (currentMillis - previousMillis >= interval) // test whether the period has elapsed
 	{
 		currentPixel++;
 		if (currentPixel > strip.numPixels())
@@ -170,7 +177,7 @@ void wipeColor(uint32_t c)
 			strip.setPixelColor(currentPixel - 1, c);
 			strip.show();
 		}
-		previousMillis = currentMillis; //IMPORTANT to save the start time of the current LED state.
+		previousMillis = currentMillis; // IMPORTANT to save the start time of the current LED state.
 	}
 }
 
@@ -192,7 +199,7 @@ uint32_t Wheel(byte WheelPos)
 	return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
 
-void redGoldGreen(uint8_t wait)
+void redGoldGreen(unsigned int distance, double brightness)
 {
 	unsigned int clampedDist = distance;
 	if (clampedDist > maxDistanceCM)
@@ -202,11 +209,11 @@ void redGoldGreen(uint8_t wait)
 
 	Color c = {(unsigned char)255 - result, result, 0};
 
-	uint32_t color = strip.Color(c.r, c.g, c.b);
+	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
 	wipeColor(color);
 }
 
-void lightsLoop()
+void lightsLoop(unsigned int distance, double brightness)
 {
 	if (clearPixels)
 	{
@@ -217,7 +224,7 @@ void lightsLoop()
 	{
 		if (!lockLow) // detected motion
 		{
-			redGoldGreen(10);
+			redGoldGreen(distance, brightness);
 		}
 		else
 		{
@@ -243,5 +250,9 @@ void loop()
 
 	distance = ultrasonic1.read();
 
-	lightsLoop();
+	int potentiometerValue = analogRead(POTENTIOMETER_PIN);
+	double brightness = potentiometerValue / 4; // 1 to 255
+	brightness /= 255;
+
+	lightsLoop(distance, brightness);
 }
