@@ -28,7 +28,7 @@ long unsigned int pause = 15000;
 boolean lockLow = true;
 boolean takeLowTime;
 int pirPin = 3; // the digital pin connected to the PIR sensor's output
-int ledPin = 8;
+int ledPin = 7;
 
 bool lastLockLow = lockLow;
 
@@ -100,7 +100,8 @@ void pirLoop()
 #define LED_NUM 12
 
 #define POTENTIOMETER_PIN A1
-#define STATE_CHANGE_PIN 7
+#define STATE_CHANGE_PIN 8
+#define MODE_CHANGE_PIN 9
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = Arduino pin number (most are valid)
@@ -119,18 +120,55 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_NUM, PIN, NEO_GRB + NEO_KHZ800);
 
 // Generally, you should use "unsigned long" for variables that hold time
 // The value will quickly become too large for an int to store
-unsigned long previousMillis = 0; // will store last time LED was updated
-
-// constants won't change:
-const long interval = 0; // interval at which to blink (milliseconds)
+unsigned long previousMillis = 0;		 // will store last time LED was updated
+unsigned long previousRainbowMillis = 0; // will store last time LED was updated
 
 uint16_t currentPixel = 0;
 bool clearPixels;
 
 unsigned int distance = 0;
-unsigned char lightsColorState = 0;
+
+unsigned char lightsColorState[] = {0, 0}; // solid, animated
 boolean lightsColorStatePressed = false;
-const char MAX_LIGHTS_COLOR_STATE = 2;
+unsigned char MAX_LIGHTS_COLOR_STATE[] = {7, 2}; // solid, animated
+
+unsigned char lightsColorMode = 0;
+boolean lightsColorModePressed = false;
+const char MAX_LIGHTS_COLOR_MODE = 2;
+
+Color createColor(int r, int g, int b)
+{
+	return {(unsigned char)r, (unsigned char)g, (unsigned char)b};
+}
+
+Color solidColors[] = {
+	createColor(255, 255, 255), // white
+	createColor(255, 0, 0),		// red
+	createColor(0, 255, 0),		// green
+	createColor(0, 0, 255),		// blue
+	createColor(255, 0, 255),	// purple
+	createColor(255, 255, 0),	// yellow
+	createColor(0, 255, 255),	// cyan
+};
+
+void rainbow(int interval, double brightness)
+{
+	unsigned long currentMillis = millis();
+
+	if (currentMillis - previousRainbowMillis >= interval) // test whether the period has elapsed
+	{
+		for (long firstPixelHue = 0; firstPixelHue < 5 * 65536; firstPixelHue += 256)
+		{
+			for (int i = 0; i < strip.numPixels(); i++)
+			{
+				int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
+				strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
+			}
+			strip.show();
+		}
+		previousRainbowMillis = currentMillis; // IMPORTANT to save the start time of the current LED state.
+	}
+}
 
 void setBrightness(uint8_t brightness)
 {
@@ -143,6 +181,7 @@ void lightsSetup()
 	strip.begin();
 	setBrightness(100);
 	pinMode(STATE_CHANGE_PIN, INPUT_PULLUP);
+	pinMode(MODE_CHANGE_PIN, INPUT_PULLUP);
 }
 
 void setStripColorStrip(uint32_t color)
@@ -150,8 +189,8 @@ void setStripColorStrip(uint32_t color)
 	for (uint16_t i = 0; i < strip.numPixels(); i++)
 	{
 		strip.setPixelColor(i, color);
-		strip.show();
 	}
+	strip.show();
 }
 
 void clearStrip()
@@ -186,41 +225,6 @@ void wipeColor(uint32_t c, long interval)
 	}
 }
 
-// color wipe with mills not delay
-void transitionColor(uint32_t c, long interval)
-{
-	// here is where you'd put code that needs to be running all the time.
-
-	// check to see if it's time to blink the LED; that is, if the difference
-	// between the current time and last time you blinked the LED is bigger than
-	// the interval at which you want to blink the LED.
-	unsigned long currentMillis = millis();
-
-	if (currentMillis - previousMillis >= interval) // test whether the period has elapsed
-	{
-		setStripColorStrip(c);
-		previousMillis = currentMillis; // IMPORTANT to save the start time of the current LED state.
-	}
-}
-
-// Input a value 0 to 255 to get a color value.
-// The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos)
-{
-	WheelPos = 255 - WheelPos;
-	if (WheelPos < 85)
-	{
-		return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-	}
-	if (WheelPos < 170)
-	{
-		WheelPos -= 85;
-		return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
-	}
-	WheelPos -= 170;
-	return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-}
-
 void redGoldGreenLights(unsigned int distance, double brightness)
 {
 	unsigned int clampedDist = distance;
@@ -235,15 +239,64 @@ void redGoldGreenLights(unsigned int distance, double brightness)
 	wipeColor(color, 0);
 }
 
-void whiteLights(double brightness)
+void solidLights(Color c, double brightness)
 {
-	Color c = {(unsigned char)255, (unsigned char)255, (unsigned char)255};
 	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
 	setStripColorStrip(color);
 }
 
+void processSolidMode(double brightness)
+{
+	Color c = solidColors[lightsColorState[lightsColorMode]];
+	solidLights(c, brightness);
+}
+
+void processAnimatedMode(unsigned int distance, double brightness)
+{
+	switch (lightsColorState[lightsColorMode])
+	{
+	case 0:
+		redGoldGreenLights(distance, brightness);
+		break;
+	case 1:
+		rainbow(distance * 50, brightness);
+		break;
+	default:
+		break;
+	}
+}
+
 void lightsLoop(unsigned int distance, double brightness)
 {
+	if (digitalRead(STATE_CHANGE_PIN) == LOW && lightsColorStatePressed == false)
+	{
+		lightsColorStatePressed = true;
+		lightsColorState[lightsColorMode]++;
+		if (lightsColorState[lightsColorMode] == MAX_LIGHTS_COLOR_STATE[lightsColorMode])
+		{
+			lightsColorState[lightsColorMode] = 0;
+		}
+		previousRainbowMillis = 0;
+		previousMillis = 0;
+	}
+	else if (digitalRead(STATE_CHANGE_PIN) == HIGH)
+	{
+		lightsColorStatePressed = false;
+	}
+	if (digitalRead(MODE_CHANGE_PIN) == LOW && lightsColorModePressed == false)
+	{
+		lightsColorModePressed = true;
+		lightsColorMode++;
+		if (lightsColorMode == MAX_LIGHTS_COLOR_MODE)
+		{
+			lightsColorMode = 0;
+		}
+	}
+	else if (digitalRead(MODE_CHANGE_PIN) == HIGH)
+	{
+		lightsColorModePressed = false;
+	}
+
 	if (clearPixels)
 	{
 		clearStrip();
@@ -253,28 +306,15 @@ void lightsLoop(unsigned int distance, double brightness)
 	{
 		if (!lockLow) // detected motion
 		{
-			if (digitalRead(STATE_CHANGE_PIN) == LOW && lightsColorStatePressed == false)
-			{
-				lightsColorStatePressed = true;
-				lightsColorState++;
-				if (lightsColorState == MAX_LIGHTS_COLOR_STATE)
-				{
-					lightsColorState = 0;
-				}
-			}
-			else if (digitalRead(STATE_CHANGE_PIN) == HIGH)
-			{
-				lightsColorStatePressed = false;
-			}
-			
-			switch (lightsColorState)
+			switch (lightsColorMode)
 			{
 			case 0:
-				whiteLights(brightness);
+				processSolidMode(brightness);
 				break;
 			case 1:
-				redGoldGreenLights(distance, brightness);
+				processAnimatedMode(distance, brightness);
 				break;
+
 			default:
 				break;
 			}
@@ -307,8 +347,10 @@ void loop()
 	double brightness = potentiometerValue / 4; // 1 to 255
 	brightness /= 255;							// 0.0 to 1.0
 
-	Serial.print("  distance: ");
-	Serial.println(distance);
+	Serial.print("lightsColorMode: ");
+	Serial.print(lightsColorMode);
+	Serial.print("  lightsColorState: ");
+	Serial.println(lightsColorState[lightsColorMode]);
 
 	lightsLoop(distance, brightness);
 }
