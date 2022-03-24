@@ -161,7 +161,7 @@ void clearStrip()
 }
 
 // color wipe with mills not delay
-void wipeColor(uint32_t c)
+void wipeColor(uint32_t c, long interval)
 {
 	// here is where you'd put code that needs to be running all the time.
 
@@ -182,6 +182,23 @@ void wipeColor(uint32_t c)
 			strip.setPixelColor(currentPixel - 1, c);
 			strip.show();
 		}
+		previousMillis = currentMillis; // IMPORTANT to save the start time of the current LED state.
+	}
+}
+
+// color wipe with mills not delay
+void transitionColor(uint32_t c, long interval)
+{
+	// here is where you'd put code that needs to be running all the time.
+
+	// check to see if it's time to blink the LED; that is, if the difference
+	// between the current time and last time you blinked the LED is bigger than
+	// the interval at which you want to blink the LED.
+	unsigned long currentMillis = millis();
+
+	if (currentMillis - previousMillis >= interval) // test whether the period has elapsed
+	{
+		setStripColorStrip(c);
 		previousMillis = currentMillis; // IMPORTANT to save the start time of the current LED state.
 	}
 }
@@ -215,19 +232,14 @@ void redGoldGreenLights(unsigned int distance, double brightness)
 	Color c = {(unsigned char)255 - result, result, 0};
 
 	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
-	wipeColor(color);
+	wipeColor(color, 0);
 }
 
-void whiteLights(unsigned int distance, double brightness)
+void whiteLights(double brightness)
 {
-	unsigned int clampedDist = distance;
-	if (clampedDist > maxDistanceCM)
-		clampedDist = maxDistanceCM;
-
 	Color c = {(unsigned char)255, (unsigned char)255, (unsigned char)255};
-
 	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
-	wipeColor(color);
+	setStripColorStrip(color);
 }
 
 void lightsLoop(unsigned int distance, double brightness)
@@ -250,19 +262,18 @@ void lightsLoop(unsigned int distance, double brightness)
 					lightsColorState = 0;
 				}
 			}
-			else if(digitalRead(STATE_CHANGE_PIN) == HIGH)
+			else if (digitalRead(STATE_CHANGE_PIN) == HIGH)
 			{
 				lightsColorStatePressed = false;
 			}
-			Serial.print("  lightsColorState: ");
-			Serial.println(lightsColorState);
+			
 			switch (lightsColorState)
 			{
 			case 0:
-				redGoldGreenLights(distance, brightness);
+				whiteLights(brightness);
 				break;
 			case 1:
-				whiteLights(distance, brightness);
+				redGoldGreenLights(distance, brightness);
 				break;
 			default:
 				break;
@@ -295,6 +306,9 @@ void loop()
 	int potentiometerValue = analogRead(POTENTIOMETER_PIN);
 	double brightness = potentiometerValue / 4; // 1 to 255
 	brightness /= 255;							// 0.0 to 1.0
+
+	Serial.print("  distance: ");
+	Serial.println(distance);
 
 	lightsLoop(distance, brightness);
 }
