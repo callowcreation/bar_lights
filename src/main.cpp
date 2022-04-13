@@ -151,21 +151,26 @@ Color solidColors[] = {
 	createColor(0, 255, 255),	// cyan
 };
 
-void rainbow(int interval, double brightness)
+#define MAX_HUE 5 * 65536
+unsigned long firstPixelHue = 0;
+void rainbow(unsigned int interval, double brightness)
 {
 	unsigned long currentMillis = millis();
 
-	if (currentMillis - previousRainbowMillis >= interval) // test whether the period has elapsed
+	//if (currentMillis - previousRainbowMillis >= interval) // test whether the period has elapsed
 	{
-		for (long firstPixelHue = 0; firstPixelHue < 5 * 65536; firstPixelHue += 256)
+		firstPixelHue = (firstPixelHue + 256) % MAX_HUE;
+
+		//Serial.print("firstPixelHue: ");
+		//Serial.println(firstPixelHue);
+
+		for (uint16_t i = 0; i < strip.numPixels(); i++)
 		{
-			for (int i = 0; i < strip.numPixels(); i++)
-			{
-				int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
-				strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
-			}
-			strip.show();
+			unsigned long pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
+			strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
 		}
+		strip.show();
+
 		previousRainbowMillis = currentMillis; // IMPORTANT to save the start time of the current LED state.
 	}
 }
@@ -200,7 +205,7 @@ void clearStrip()
 }
 
 // color wipe with mills not delay
-void wipeColor(uint32_t c, long interval)
+void wipeColor(uint32_t c, unsigned long interval)
 {
 	// here is where you'd put code that needs to be running all the time.
 
@@ -233,7 +238,7 @@ void redGoldGreenLights(unsigned int distance, double brightness)
 
 	unsigned char result = (unsigned char)((float)clampedDist / (float)maxDistanceCM * 255.0f);
 
-	Color c = {(unsigned char)255 - result, result, 0};
+	Color c = {((unsigned char)255) - result, result, 0};
 
 	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
 	wipeColor(color, 0);
@@ -314,7 +319,6 @@ void lightsLoop(unsigned int distance, double brightness)
 			case 1:
 				processAnimatedMode(distance, brightness);
 				break;
-
 			default:
 				break;
 			}
@@ -347,10 +351,12 @@ void loop()
 	double brightness = potentiometerValue / 4; // 1 to 255
 	brightness /= 255;							// 0.0 to 1.0
 
-	Serial.print("lightsColorMode: ");
+	/*Serial.print("lightsColorMode: ");
 	Serial.print(lightsColorMode);
 	Serial.print("  lightsColorState: ");
-	Serial.println(lightsColorState[lightsColorMode]);
+	Serial.println(lightsColorState[lightsColorMode]);*/
 
 	lightsLoop(distance, brightness);
+	
+	Serial.println(firstPixelHue);
 }
