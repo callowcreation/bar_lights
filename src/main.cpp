@@ -82,9 +82,9 @@ void pirLoop()
 			// makes sure this block of code is only executed again after
 			// a new motion sequence has been detected
 			lockLow = true;
-			Serial.print("motion ended at "); // output
+			/*Serial.print("motion ended at "); // output
 			Serial.print((millis() - pause) / 1000);
-			Serial.println(" sec");
+			Serial.println(" sec");*/
 		}
 	}
 	if (lastLockLow != lockLow)
@@ -102,6 +102,9 @@ void pirLoop()
 #define POTENTIOMETER_PIN A1
 #define STATE_CHANGE_PIN 8
 #define MODE_CHANGE_PIN 9
+
+#define MAX_LIGHTS_COLOR_MODE 2
+#define MAX_HUE 327680
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = Arduino pin number (most are valid)
@@ -134,7 +137,8 @@ unsigned char MAX_LIGHTS_COLOR_STATE[] = {7, 2}; // solid, animated
 
 unsigned char lightsColorMode = 0;
 boolean lightsColorModePressed = false;
-const char MAX_LIGHTS_COLOR_MODE = 2;
+
+unsigned long firstPixelHue = 0;
 
 Color createColor(int r, int g, int b)
 {
@@ -151,23 +155,19 @@ Color solidColors[] = {
 	createColor(0, 255, 255),	// cyan
 };
 
-#define MAX_HUE 5 * 65536
-unsigned long firstPixelHue = 0;
 void rainbow(unsigned int interval, double brightness)
 {
 	unsigned long currentMillis = millis();
 
-	//if (currentMillis - previousRainbowMillis >= interval) // test whether the period has elapsed
+	if (currentMillis - previousRainbowMillis >= interval) // test whether the period has elapsed
 	{
 		firstPixelHue = (firstPixelHue + 256) % MAX_HUE;
-
-		//Serial.print("firstPixelHue: ");
-		//Serial.println(firstPixelHue);
 
 		for (uint16_t i = 0; i < strip.numPixels(); i++)
 		{
 			unsigned long pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
-			strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
+			uint32_t c = strip.ColorHSV(pixelHue, 255, 255 * brightness);
+			strip.setPixelColor(i, strip.gamma32(c));
 		}
 		strip.show();
 
@@ -238,7 +238,7 @@ void redGoldGreenLights(unsigned int distance, double brightness)
 
 	unsigned char result = (unsigned char)((float)clampedDist / (float)maxDistanceCM * 255.0f);
 
-	Color c = {((unsigned char)255) - result, result, 0};
+	Color c = {(unsigned char)255 - result, result, (unsigned char)0};
 
 	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
 	wipeColor(color, 0);
@@ -264,7 +264,7 @@ void processAnimatedMode(unsigned int distance, double brightness)
 		redGoldGreenLights(distance, brightness);
 		break;
 	case 1:
-		rainbow(distance * 50, brightness);
+		rainbow(distance * 0.2, brightness);
 		break;
 	default:
 		break;
@@ -357,6 +357,4 @@ void loop()
 	Serial.println(lightsColorState[lightsColorMode]);*/
 
 	lightsLoop(distance, brightness);
-	
-	Serial.println(firstPixelHue);
 }
