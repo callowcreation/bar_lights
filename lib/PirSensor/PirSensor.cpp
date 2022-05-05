@@ -3,7 +3,7 @@
 
 PirSensor::PirSensor(unsigned int calibrationTime)
 {
-    mCalibrationTime = calibrationTime;
+    mCalibrationTimeSeconds = calibrationTime;
 }
 
 void PirSensor::Setup(unsigned int pirPin, unsigned int ledPin)
@@ -68,7 +68,7 @@ void PirSensor::InitPins()
 void PirSensor::CalibrationSensor()
 {
     Serial.print("calibrating sensor ");
-    for (int i = 0; i < mCalibrationTime; i++)
+    for (int i = 0; i < mCalibrationTimeSeconds; i++)
     {
         Serial.print(".");
         delay(1000);

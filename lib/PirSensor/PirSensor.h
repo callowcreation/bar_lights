@@ -12,7 +12,7 @@ class PirSensor
 {
 
 public:
-    PirSensor(unsigned int mCalibrationTime);
+    PirSensor(unsigned int calibrationTime);
     void Setup(unsigned int pirPin, unsigned int ledPin);
     void Loop();
 
@@ -21,7 +21,7 @@ public:
 private:
     // the time we give the sensor to calibrate
     // (10-60 secs according to the datasheet)
-    unsigned int mCalibrationTime;
+    unsigned int mCalibrationTimeSeconds;
 
     // the time when the sensor outputs a low impulse
     unsigned long mLowIn;
