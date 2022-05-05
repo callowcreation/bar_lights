@@ -8,7 +8,8 @@
 #include <avr/power.h>
 #endif
 
-#include "color.h"
+#include "Color.h"
+#include <PirSensor.h>
 
 // --- Ultrasonic -----------------------------------------------
 Ultrasonic ultrasonic1(12, 13); // An ultrasonic sensor HC-04
@@ -18,81 +19,7 @@ unsigned int maxDistanceCM = 88;
 // --- Ultrasonic -----------------------------------------------
 
 // ---- PIR Sensor -----------------------------------------------
-// the time we give the sensor to calibrate (10-60 secs according to the datasheet)
-int calibrationTime = 30;
-// the time when the sensor outputs a low impulse
-long unsigned int lowIn;
-// the amount of milliseconds the sensor has to be low
-// before we assume all motion has stopped
-long unsigned int pause = 15000;
-boolean lockLow = true;
-boolean takeLowTime;
-int pirPin = 3; // the digital pin connected to the PIR sensor's output
-int ledPin = 7;
-
-bool lastLockLow = lockLow;
-
-bool turnLightsOn = false;
-
-void pirSetup()
-{
-	pinMode(pirPin, INPUT);
-	pinMode(ledPin, OUTPUT);
-	digitalWrite(pirPin, LOW); // give the sensor some time to calibrate
-	Serial.print("calibrating sensor ");
-	for (int i = 0; i < calibrationTime; i++)
-	{
-		Serial.print(".");
-		delay(1000);
-	}
-	Serial.println(" done");
-	Serial.println("SENSOR ACTIVE");
-	delay(50);
-}
-
-void pirLoop()
-{
-	if (digitalRead(pirPin) == HIGH)
-	{
-		digitalWrite(ledPin, HIGH); // the led visualizes the sensors output pin state
-
-		if (lockLow)
-		{ // makes sure we wait for a transition to LOW before any further output is made:
-
-			lockLow = false;
-			Serial.println("---");
-			Serial.print("motion detected at ");
-			Serial.print(millis() / 1000);
-			Serial.println(" sec");
-		}
-		takeLowTime = true;
-	}
-	if (digitalRead(pirPin) == LOW)
-	{
-		digitalWrite(ledPin, LOW); // the led visualizes the sensors output pin state
-		if (takeLowTime)
-		{
-			lowIn = millis();	 // save the time of the transition from high to LOW
-			takeLowTime = false; // make sure this is only done at the start of a LOW phase
-		}
-		// if the sensor is low for more than the given pause,
-		// we assume that no more motion is going to happen
-		if (!lockLow && millis() - lowIn > pause)
-		{
-			// makes sure this block of code is only executed again after
-			// a new motion sequence has been detected
-			lockLow = true;
-			/*Serial.print("motion ended at "); // output
-			Serial.print((millis() - pause) / 1000);
-			Serial.println(" sec");*/
-		}
-	}
-	if (lastLockLow != lockLow)
-	{
-		lastLockLow = lockLow;
-	}
-}
-
+PirSensor pirSensor(30);
 // ---- PIR Sensor -----------------------------------------------
 
 // ---- Lights -----------------------------------------------
@@ -132,11 +59,11 @@ bool clearPixels;
 unsigned int distance = 0;
 
 unsigned char lightsColorState[] = {0, 0}; // solid, animated
-boolean lightsColorStatePressed = false;
+bool lightsColorStatePressed = false;
 unsigned char MAX_LIGHTS_COLOR_STATE[] = {7, 2}; // solid, animated
 
-unsigned char lightsColorMode = 0;
-boolean lightsColorModePressed = false;
+unsigned int lightsColorMode = 0;
+bool lightsColorModePressed = false;
 
 unsigned long firstPixelHue = 0;
 
@@ -236,9 +163,9 @@ void redGoldGreenLights(unsigned int distance, double brightness)
 	if (clampedDist > maxDistanceCM)
 		clampedDist = maxDistanceCM;
 
-	unsigned char result = (unsigned char)((float)clampedDist / (float)maxDistanceCM * 255.0f);
+	unsigned int result = (int)((float)clampedDist / (float)maxDistanceCM * 255.0f);
 
-	Color c = {(unsigned char)255 - result, result, (unsigned char)0};
+	Color c = {(unsigned char)(255 - result), (unsigned char)result, (unsigned char)0};
 
 	uint32_t color = strip.Color(c.r * brightness, c.g * brightness, c.b * brightness);
 	wipeColor(color, 0);
@@ -309,7 +236,7 @@ void lightsLoop(unsigned int distance, double brightness)
 	}
 	else
 	{
-		if (!lockLow) // detected motion
+		if (!pirSensor.GetLockLow()) // detected motion
 		{
 			switch (lightsColorMode)
 			{
@@ -336,14 +263,15 @@ void lightsLoop(unsigned int distance, double brightness)
 void setup()
 {
 	Serial.begin(9600);
-	pirSetup();
+
+	pirSensor.Setup(3, 7);
 	lightsSetup();
 	clearStrip();
 }
 
 void loop()
 {
-	pirLoop();
+	pirSensor.Loop();
 
 	distance = ultrasonic1.read();
 
